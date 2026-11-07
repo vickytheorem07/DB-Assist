@@ -48,10 +48,11 @@ def _configure():
 
     _configured = True
 
-def setup_logger(name, request_id="N/A"):
+def setup_logger(name, req_id="N/A"):
     _configure()
 
     return logging.LoggerAdapter(
         logging.getLogger(f"{_BASE}.{name}"),
-        {"request_id": request_id}
+        {"request_id": req_id}
     )
+

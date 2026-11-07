@@ -1,18 +1,23 @@
 from pathlib import Path
 from io import BytesIO
+from datetime import datetime
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
 from app.core.config import settings
 from app.core.logger import setup_logger
 from app.services.loaders import DocumentLoader
+from app.services.embedding import Hugging_face_embedding
+from app.services.vector_db import ChromaVectorDB
+
 
 router = APIRouter()
-logger = setup_logger(__name__)
 
 
 @router.post("/load_doc", status_code=status.HTTP_201_CREATED)
 async def upload_document(file: UploadFile = File(...)):
+    req_id = datetime.now().strftime("%H%M%d%m%y-load_docs")
+    logger = setup_logger(__name__, req_id)
     log_filename = Path(file.filename or "unnamed").name.replace("\r", "").replace("\n", "")
     logger.info("Document upload received: filename=%s", log_filename)
 
@@ -39,8 +44,8 @@ async def upload_document(file: UploadFile = File(...)):
                 detail=f"Document exceeds the {settings.MAX_UPLOAD_SIZE_MB} MB upload limit",
             )
         
-        # Load one LangChain Document per page, including table-cell text.
-        loader = DocumentLoader()
+        # Load one LangChain Document per page.
+        loader = DocumentLoader(req_id=req_id)
         page_documents = loader.load_docx_pages(
             BytesIO(contents),
             source_name=log_filename,
@@ -58,6 +63,7 @@ async def upload_document(file: UploadFile = File(...)):
                 detail=f"Document exceeds the {settings.MAX_DOCUMENT_PAGES} page limit",
             )
 
+        #chunking 
         chunks = loader.chunk_documents(
             page_documents,
             chunk_size=settings.CHUNK_SIZE_TOKENS,
@@ -74,10 +80,24 @@ async def upload_document(file: UploadFile = File(...)):
             extracted_chars,
         )
 
+        #Store the chunks in the vector database
+        embedding = Hugging_face_embedding(
+            settings.huggingface_embedding_model_name,
+            settings.huggingface_api,
+            req_id=req_id,
+        )
+        vector_db = ChromaVectorDB(
+            embedding.embedding,
+            settings.collection_name,
+            settings.persist_dir,
+            req_id=req_id,
+        )
+        inserted_ids = vector_db.add_documents(chunks)
+        logger.info("DOCX chunks stored: filename=%s inserted_count=%d", log_filename, len(inserted_ids))
         return {
             "status": "success",
             "filename": file.filename,
-            "message": "Document loaded and chunked successfully.",
+            "message": "Document loaded, chunked and stored in vector db successfully.",
             "pages": page_count,
             "chunks": len(chunks),
             "table_names": sorted({chunk.metadata["name"] for chunk in chunks}),
@@ -94,3 +114,4 @@ async def upload_document(file: UploadFile = File(...)):
 
     finally:
         await file.close()
+

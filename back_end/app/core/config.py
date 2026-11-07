@@ -1,11 +1,19 @@
 from functools import lru_cache
+from pathlib import Path
 
-from pydantic import field_validator, model_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+BACK_END_DIR = Path(__file__).resolve().parents[2]
+
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=BACK_END_DIR / ".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     APP_ENV: str = "local"
     DATABASE_URL: str = "postgresql+psycopg://taskapp:replace-me@localhost:5432/taskdb"
@@ -16,6 +24,17 @@ class Settings(BaseSettings):
     CHUNK_SIZE_TOKENS: int = 500
     CHUNK_OVERLAP_TOKENS: int = 250
     TIKTOKEN_ENCODING: str = "cl100k_base"
+
+    groq_llm_api_key: str
+    llm_model_name: str = "openai/gpt-oss-20b"
+    temperature: float = 0.9
+    huggingface_embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
+    huggingface_api: str | None = None
+    data_path: str = "AI/data"
+    persist_dir: str = "chroma_db"
+    collection_name: str = "documents"
+    top_k: int = 3
+    LANGSMITH_API_KEY: str
 
     @field_validator("MAX_DOCUMENT_PAGES", "MAX_UPLOAD_SIZE_MB", "CHUNK_SIZE_TOKENS")
     @classmethod
@@ -42,7 +61,8 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    # Pylance cannot infer that BaseSettings reads required fields from .env.
+    return Settings()  # pyright: ignore[reportCallIssue]
 
 
 settings = get_settings()
