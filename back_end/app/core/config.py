@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     )
 
     APP_ENV: str = "local"
-    DATABASE_URL: str = "postgresql+psycopg://taskapp:replace-me@localhost:5432/taskdb"
+    DATABASE_URL: str = ""
     SECRET_KEY: str = "unsafe-development-secret-change-me"
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
     MAX_DOCUMENT_PAGES: int = 10
@@ -30,7 +30,6 @@ class Settings(BaseSettings):
     temperature: float = 0.9
     huggingface_embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
     huggingface_api: str | None = None
-    data_path: str = "AI/data"
     persist_dir: str = "chroma_db"
     collection_name: str = "documents"
     top_k: int = 3
@@ -61,7 +60,6 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    # Pylance cannot infer that BaseSettings reads required fields from .env.
     return Settings()  # pyright: ignore[reportCallIssue]
 
 

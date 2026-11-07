@@ -1,6 +1,7 @@
 from pathlib import Path
 from io import BytesIO
 from datetime import datetime
+from time import perf_counter
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
@@ -18,18 +19,20 @@ router = APIRouter()
 async def upload_document(file: UploadFile = File(...)):
     req_id = datetime.now().strftime("%H%M%d%m%y-load_docs")
     logger = setup_logger(__name__, req_id)
+    request_started = perf_counter()
+    response_status = status.HTTP_500_INTERNAL_SERVER_ERROR
     log_filename = Path(file.filename or "unnamed").name.replace("\r", "").replace("\n", "")
-    logger.info("Document upload received: filename=%s", log_filename)
-
-    # Validate file extension
-    if not (file.filename or "").lower().endswith(".docx"):
-        logger.warning("Document upload rejected: unsupported file type, filename=%s", log_filename)
-        raise HTTPException(
-            status_code=400,
-            detail="Only .docx files are allowed"
-        )
+    logger.info("/load_doc request started: filename=%s", log_filename)
 
     try:
+        # Validate file extension
+        if not (file.filename or "").lower().endswith(".docx"):
+            logger.warning("Document upload rejected: unsupported file type, filename=%s", log_filename)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only .docx files are allowed"
+            )
+
         # Read no more than the configured maximum plus one byte.
         max_upload_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
         contents = await file.read(max_upload_bytes + 1)
@@ -94,6 +97,7 @@ async def upload_document(file: UploadFile = File(...)):
         )
         inserted_ids = vector_db.add_documents(chunks)
         logger.info("DOCX chunks stored: filename=%s inserted_count=%d", log_filename, len(inserted_ids))
+        response_status = status.HTTP_201_CREATED
         return {
             "status": "success",
             "filename": file.filename,
@@ -103,15 +107,24 @@ async def upload_document(file: UploadFile = File(...)):
             "table_names": sorted({chunk.metadata["name"] for chunk in chunks}),
         }
 
-    except HTTPException:
+    except HTTPException as exc:
+        response_status = exc.status_code
         raise
     except Exception:
         logger.exception("DOCX processing failed: filename=%s", log_filename)
+        response_status = status.HTTP_500_INTERNAL_SERVER_ERROR
         raise HTTPException(
             status_code=500,
             detail="Error processing document"
         )
 
     finally:
-        await file.close()
+        try:
+            await file.close()
+        finally:
+            logger.info(
+                "/load_doc request ended: status_code=%d total_time_seconds=%.2f",
+                response_status,
+                perf_counter() - request_started,
+            )
 

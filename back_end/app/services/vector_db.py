@@ -1,7 +1,7 @@
 import time
 from abc import ABC, abstractmethod
+from threading import Lock
 from typing import Any
-from uuid import uuid4
 
 from langchain_core.documents import Document
 from langchain_chroma import Chroma
@@ -32,6 +32,8 @@ class VectorDB(ABC):
 
 
 class ChromaVectorDB(VectorDB):
+    _insert_lock = Lock()
+
     def __init__(self, embedding_model, collection_name: str, persist_dir: str, req_id: str = "N/A"):
         self.logger = setup_logger(__name__, req_id)
         self.collection_name = collection_name
@@ -48,14 +50,36 @@ class ChromaVectorDB(VectorDB):
 
     def add_documents(self, docs: list[Document]) -> list[str]:
         started = time.perf_counter()
-        ids = [str(uuid4()) for _ in docs]
-        self.logger.info("Vector document insertion started: collection=%s count=%d", self.collection_name, len(docs))
+        self.logger.info("Vector collection replacement started: collection=%s new_count=%d", self.collection_name, len(docs))
         try:
-            inserted_ids = self.db.add_documents(documents=docs, ids=ids)
+            # Replace the collection contents for this upload; IDs restart at 1.
+            with self._insert_lock:
+                existing_ids = self.db.get(include=[])["ids"]
+                if existing_ids:
+                    self.logger.info(
+                        "Replacing existing vector documents: collection=%s old_count=%d",
+                        self.collection_name,
+                        len(existing_ids),
+                    )
+                    self.db.delete(ids=existing_ids)
+                self.logger.info(
+                    "Vector collection cleared: collection=%s remaining_count=0",
+                    self.collection_name,
+                )
+                if not docs:
+                    self.logger.warning(
+                        "No new documents supplied after clearing collection: collection=%s",
+                        self.collection_name,
+                    )
+                    return []
+
+                # Each replacement starts IDs at 1.
+                ids = [str(index + 1) for index in range(len(docs))]
+                inserted_ids = self.db.add_documents(documents=docs, ids=ids)
         except Exception:
-            self.logger.exception("Vector document insertion failed: collection=%s count=%d", self.collection_name, len(docs))
+            self.logger.exception("Vector collection replacement failed: collection=%s new_count=%d", self.collection_name, len(docs))
             raise
-        self.logger.info("Vector document insertion completed: collection=%s count=%d elapsed_ms=%.1f", self.collection_name, len(inserted_ids), (time.perf_counter() - started) * 1000)
+        self.logger.info("Vector collection replacement completed: collection=%s count=%d elapsed_ms=%.1f", self.collection_name, len(inserted_ids), (time.perf_counter() - started) * 1000)
         return inserted_ids
 
     def similarity_search(self, query: str, k: int = 3) -> list[Document]:
