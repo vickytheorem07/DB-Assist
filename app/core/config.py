@@ -15,10 +15,12 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+
     APP_ENV: str = "local"
     DATABASE_URL: str = ""
     SECRET_KEY: str = "unsafe-development-secret-change-me"
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
+    limit_history_of_conversation: int = 10
     MAX_DOCUMENT_PAGES: int = 10
     MAX_UPLOAD_SIZE_MB: int = 10
     CHUNK_SIZE_TOKENS: int = 500

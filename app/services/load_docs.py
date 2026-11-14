@@ -3,21 +3,16 @@ from io import BytesIO
 from datetime import datetime
 from time import perf_counter
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import HTTPException, UploadFile, status
 
 from app.core.config import settings
 from app.core.logger import setup_logger
 from app.services.loaders import DocumentLoader
 from app.services.embedding import Hugging_face_embedding
 from app.services.vector_db import ChromaVectorDB
+from app.schemas.load_docs import LoadDocsResponse
 
-
-router = APIRouter()
-
-
-@router.post("/load_doc", status_code=status.HTTP_201_CREATED)
-async def upload_document(file: UploadFile = File(...)):
-    req_id = datetime.now().strftime("%H%M%d%m%y-load_docs")
+async def load_docs(req_id: str, file: UploadFile) -> LoadDocsResponse:
     logger = setup_logger(__name__, req_id)
     request_started = perf_counter()
     response_status = status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -98,14 +93,14 @@ async def upload_document(file: UploadFile = File(...)):
         inserted_ids = vector_db.add_documents(chunks)
         logger.info("DOCX chunks stored: filename=%s inserted_count=%d", log_filename, len(inserted_ids))
         response_status = status.HTTP_201_CREATED
-        return {
-            "status": "success",
-            "filename": file.filename,
-            "message": "Document loaded, chunked and stored in vector db successfully.",
-            "pages": page_count,
-            "chunks": len(chunks),
-            "table_names": sorted({chunk.metadata["name"] for chunk in chunks}),
-        }
+        return LoadDocsResponse(
+            status="success",
+            filename=file.filename,
+            message="Document loaded, chunked and stored in vector db successfully.",
+            pages=page_count,
+            chunks=len(chunks),
+            table_names=sorted({chunk.metadata["name"] for chunk in chunks}),
+        )
 
     except HTTPException as exc:
         response_status = exc.status_code
@@ -127,4 +122,3 @@ async def upload_document(file: UploadFile = File(...)):
                 response_status,
                 perf_counter() - request_started,
             )
-

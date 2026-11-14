@@ -2,6 +2,7 @@ import time
 from abc import ABC, abstractmethod
 
 from langchain_groq import ChatGroq
+from pydantic import SecretStr
 
 from app.core.logger import setup_logger
 
@@ -20,7 +21,7 @@ class Groq_llm(llm):
         self.llm = ChatGroq(
             model=model_name,
             temperature=temperature,
-            api_key=api_key,
+            api_key=SecretStr(api_key),
         )
         logger.info("LLM client initialized: model=%s", model_name)
 
@@ -32,7 +33,7 @@ class Groq_llm(llm):
         except Exception:
             logger.exception("LLM request failed: model=%s", self.model_name)
             raise
-        content = response.content
+        content = str(response.content)
         logger.info(
             "LLM request completed: model=%s elapsed_ms=%.1f",
             self.model_name,
