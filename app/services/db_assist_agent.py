@@ -265,19 +265,31 @@ async def interact_agent(db: AsyncSession, req_id: str, user_query: str, convers
             output_tokens,
             perf_counter() - agent_started,
         )
-        for message in messages:
-            if isinstance(message, AIMessage):
-                for tool_call in message.tool_calls or []:
-                    logger.info(
-                        "Agent tool call: name=%s",
-                        tool_call.get("name", "unknown"),
-                    )
-            elif isinstance(message, ToolMessage):
-                logger.info(
-                    "Agent tool result: name=%s content_length=%d",
-                    message.name,
-                    len(str(message.content)),
-                )
+        # for message in messages:
+        #     if isinstance(message, AIMessage):
+        #         for tool_call in message.tool_calls or []:
+        #             logger.info(
+        #                 "Agent tool call: name=%s",
+        #                 tool_call.get("name", "unknown"),
+        #             )
+        #     elif isinstance(message, ToolMessage):
+        #         logger.info(
+        #             "Agent tool result: name=%s content_length=%d",
+        #             message.name,
+        #             len(str(message.content)),
+        #         )
+        for message in agent_result["messages"]:
+            if message.type == "ai":
+                for block in message.content_blocks:
+                    if block["type"] == "reasoning":
+                        logger.info("Reasoning: %s", str(block["reasoning"]))
+                    elif block["type"] == "tool_call":
+                        logger.info(f"Tool call: {str(block['name'])}({str(block['args'])})")
+                    elif block["type"] == "text":
+                        logger.info("Assistant: %s", str(block["text"]))
+
+            elif message.type == "tool":
+                logger.info(f"Tool result [{str(message.name)}]: {str(message.content)}")
 
         response_status = status.HTTP_200_OK
         logger.info("Agent request completed successfully")
