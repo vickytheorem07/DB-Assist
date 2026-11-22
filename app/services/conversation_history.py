@@ -13,11 +13,7 @@ from app.schemas.conversation_history import (
 )
 
 
-async def fetch_conversation_history(
-    db: AsyncSession,
-    req_id: str,
-    request: ConversationHistoryRequest,
-) -> ConversationHistoryResponse:
+async def fetch_conversation_history(db: AsyncSession, req_id: str, request: ConversationHistoryRequest,) -> ConversationHistoryResponse:
     logger = setup_logger(__name__, req_id)
     started_at = perf_counter()
     logger.info(

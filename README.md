@@ -168,7 +168,7 @@ The agent needs to save conversation messages. Grant this role `INSERT` only on 
 GRANT SELECT, INSERT ON TABLE public.conversation_messages TO sales_readonly;
 ```
 
-Configure the app’s `back_end/.env` with a URL for the role above:
+Configure the app’s root `.env` file with a URL for the role above:
 
 ```env
 DATABASE_URL=postgresql+psycopg://sales_readonly:YOUR_PASSWORD@localhost:5432/sales_management
@@ -178,7 +178,7 @@ Replace `YOUR_PASSWORD` with the role password. Keep real credentials out of sou
 
 ## Database guide YAML
 
-The SQL agent reads its allowed schema and table list from `back_end/db_assist.yaml`:
+The SQL agent reads its allowed schema and table list from `db_assist.yaml`:
 
 ```yaml
 database:
@@ -199,14 +199,7 @@ The upload endpoint allows `.docx` files up to 10 MB and 10 pages by default. Co
 
 When a new guide is uploaded, the existing Chroma collection is cleared before the new chunks are added. IDs start at `1` for each replacement.
 
-To generate the optional JSONL chunk file from the source guide:
-
-```powershell
-uv sync
-uv run python back_end/chunk_database_guide.py --max-tokens 500 --overlap-tokens 250 --encoding cl100k_base
-```
-
-By default, the JSONL output is `back_end/data/sales_management_chunks.jsonl`.
+Upload a guide through the API to add its chunks to Chroma.
 
 ## API endpoints
 
@@ -236,12 +229,36 @@ Retrieve up to `limit` user/assistant messages for a conversation. `limit` defau
 ### Health checks
 
 - `GET /health` is available.
-- `/ready` is currently commented out in `back_end/main.py` and is not registered.
+- `GET /ready` checks database connectivity and returns `503` when the database is unavailable.
 
-## Run the backend
+## Run locally
 
-From the `back_end` directory:
+Create a root `.env` file with the required application settings, then start the API:
 
-```powershell
-uv run --project .. uvicorn app.main:app --reload
+```bash
+uv sync
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
+
+The API is available at `http://localhost:8000`; interactive API docs are at `http://localhost:8000/docs`.
+
+## Run with Docker
+
+Build the image from the repository root:
+
+```bash
+docker build -t db-assist .
+```
+
+Create a root `.env` file containing the required settings, including `groq_llm_api_key`, `LANGSMITH_API_KEY`, and `DATABASE_URL`. Then run the container:
+
+```bash
+docker run --rm --name db-assist \
+  --env-file .env \
+  -p 8000:8000 \
+  -v db-assist-chroma:/app/chroma_db \
+  -v db-assist-logs:/app/logs \
+  db-assist
+```
+
+The named volumes preserve the Chroma index and logs across container restarts. The API is available at `http://localhost:8000`, with interactive docs at `http://localhost:8000/docs`. A `DATABASE_URL` using `localhost` inside the container will refer to the container itself; use a reachable database hostname (for example, `host.docker.internal` for a database on the Docker host) instead.

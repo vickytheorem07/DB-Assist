@@ -44,10 +44,7 @@ async def load_docs(req_id: str, file: UploadFile) -> LoadDocsResponse:
         
         # Load one LangChain Document per page.
         loader = DocumentLoader(req_id=req_id)
-        page_documents = loader.load_docx_pages(
-            BytesIO(contents),
-            source_name=log_filename,
-        )
+        page_documents = loader.load_docx_pages(BytesIO(contents), source_name=log_filename,)
         page_count = len(page_documents)
         if page_count > settings.MAX_DOCUMENT_PAGES:
             logger.warning(

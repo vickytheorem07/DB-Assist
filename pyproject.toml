@@ -1,7 +1,7 @@
 [project]
 name = "db-assist"
 version = "0.1.0"
-description = "Add your description here"
+description = "An AI-powered database assistant that converts natural language questions into SQL queries, executes them against databases, and delivers accurate, context-aware results in a human-readable format. Built using LLMs, LangChain, and FastAPI to simplify database interactions and enable efficient data retrieval without requiring SQL expertise."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

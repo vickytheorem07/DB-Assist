@@ -25,8 +25,6 @@ HISTORY_LIMIT = settings.limit_history_of_conversation
 
  
 class AgentInput(TypedDict):
-    """Input shape for the LangChain create_agent graph."""
-
     messages: list[AnyMessage | dict[str, Any]]
 
 def load_database_config() -> tuple[str, list[str]]:
@@ -85,12 +83,14 @@ async def interact_agent(db: AsyncSession, req_id: str, user_query: str, convers
                 detail="Database connection is not configured",
             )
 
+        #-------------LLM--------------
         llm = ChatGroq(
             model=settings.llm_model_name,
             temperature=settings.temperature,
             api_key=SecretStr(settings.groq_llm_api_key),
         )
 
+        #-----------Retrieval-----------
         context = ""
         try:
             embedding = Hugging_face_embedding(
@@ -124,6 +124,7 @@ async def interact_agent(db: AsyncSession, req_id: str, user_query: str, convers
             # The SQL agent can still answer database questions if retrieval is unavailable.
             logger.exception("Semantic retrieval failed; continuing without retrieved context")
 
+        #-------------------tools and agent creation---------------
         schema_name, table_names = load_database_config()
         database = SQLDatabase.from_uri(
             settings.DATABASE_URL,
@@ -143,9 +144,10 @@ async def interact_agent(db: AsyncSession, req_id: str, user_query: str, convers
             tools=toolkit.get_tools(),
             system_prompt=system_prompt,
         )
-
+        
         agent_started = perf_counter()
         try:
+            #-------------fetch history of conversation-----------
             history_result = await db.execute(
                 select(ConversationHistory)
                 .where(
@@ -179,7 +181,7 @@ async def interact_agent(db: AsyncSession, req_id: str, user_query: str, convers
         agent_messages.append(HumanMessage(content=user_query))
         starting_message_count = len(agent_messages)
         agent_input: AgentInput = {"messages": agent_messages}
-
+        #------------------interact agent----------------
         try:
             agent_result = await agent.ainvoke(agent_input)
         except Exception as exc:
@@ -244,6 +246,7 @@ async def interact_agent(db: AsyncSession, req_id: str, user_query: str, convers
                 detail="Could not save conversation history",
             ) from exc
 
+        #----------------observability------------------
         messages = agent_result["messages"][starting_message_count:]
         ai_messages = [message for message in messages if isinstance(message, AIMessage)]
         tool_call_count = sum(len(message.tool_calls or []) for message in ai_messages)
