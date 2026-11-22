@@ -38,13 +38,13 @@ app.include_router(api_router, prefix="/api/v1")
 async def health():
     return {"status": "ok"}
 
-# from sqlalchemy import text
-# from app.db.session import engine
-# @app.get("/ready", tags=["operations"])
-# async def readiness():
-#     try:
-#         async with engine.connect() as connection:
-#             await connection.execute(text("SELECT 1"))
-#     except Exception:
-#         raise HTTPException(status_code=503, detail="Database is not ready")
-#     return {"status": "ready", "database": "ok"}
+from sqlalchemy import text
+from app.db.session import engine
+@app.get("/ready", tags=["operations"])
+async def readiness():
+    try:
+        async with engine.connect() as connection:
+            await connection.execute(text("SELECT 1"))
+    except Exception:
+        raise HTTPException(status_code=503, detail="Database is not ready")
+    return {"status": "ready", "database": "ok"}

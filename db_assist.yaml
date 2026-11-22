@@ -1,0 +1,8 @@
+database:
+  schema: public
+  tables:
+    - customers
+    - employees
+    - products
+    - orders
+    - order_items
